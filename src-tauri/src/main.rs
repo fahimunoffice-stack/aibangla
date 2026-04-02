@@ -8,16 +8,16 @@ mod text_injector;
 mod input_hook;
 mod commands;
 
-use config::{Config, Mode, CONFIG};
+use config::{Mode, CONFIG};
 use buffer::Buffer;
 use ai_engine::AI_ENGINE;
 use text_injector::INJECTOR;
 use input_hook::{InputEvent, InputHook};
-use commands::{AppState, get_config, save_config, set_mode, test_api_key, get_status, set_active, toggle_active, show_window, quit_app};
+use commands::{AppState, get_config, save_config, set_mode, test_api_key, get_status, toggle_active, show_window, quit_app};
 
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
-use tauri::{SystemTray, SystemTrayEvent, SystemTrayMenu, SystemTrayMenuItem, CustomMenuItem, Manager};
+use std::time::Instant;
+use tauri::{Manager, WebviewWindow};
 use tokio::runtime::Runtime;
 
 struct AppData {
@@ -35,56 +35,14 @@ fn main() {
     // Create tokio runtime for async operations
     let rt = Arc::new(Runtime::new().expect("Failed to create Tokio runtime"));
 
-    // Initialize system tray
-    let quit = CustomMenuItem::new("quit".to_string(), "Quit");
-    let toggle = CustomMenuItem::new("toggle".to_string(), "Toggle ON/OFF");
-    let settings = CustomMenuItem::new("settings".to_string(), "Settings");
-    let tray_menu = SystemTrayMenu::new()
-        .add_item(toggle)
-        .add_item(settings)
-        .add_native_item(SystemTrayMenuItem::Separator)
-        .add_item(quit);
-
-    let system_tray = SystemTray::new().with_menu(tray_menu);
-
     tauri::Builder::default()
         .manage(AppState::default())
         .manage(AppData {
             buffer: Arc::new(Mutex::new(Buffer::new())),
             last_correction_time: Arc::new(Mutex::new(None)),
         })
-        .system_tray(system_tray)
-        .on_system_tray_event(|app, event| {
-            match event {
-                SystemTrayEvent::LeftClick {
-                    position: _,
-                    size: _,
-                    ..
-                } => {
-                    let _ = toggle_active(app.state::<AppState>());
-                }
-                SystemTrayEvent::MenuItemClick { id, .. } => {
-                    match id.as_str() {
-                        "quit" => {
-                            app.exit(0);
-                        }
-                        "toggle" => {
-                            let new_state = toggle_active(app.state::<AppState>());
-                            if let Some(window) = app.get_window("main") {
-                                let _ = window.emit("toggle-changed", new_state);
-                            }
-                        }
-                        "settings" => {
-                            show_window(app.handle());
-                        }
-                        _ => {}
-                    }
-                }
-                _ => {}
-            }
-        })
         .setup(move |app| {
-            let app_handle = app.handle();
+            let app_handle = app.handle().clone();
             let app_data: tauri::State<'_, AppData> = app.state();
             let buffer = app_data.buffer.clone();
             let last_correction_time = app_data.last_correction_time.clone();
@@ -187,7 +145,6 @@ fn main() {
             set_mode,
             test_api_key,
             get_status,
-            set_active,
             toggle_active,
             show_window,
             quit_app

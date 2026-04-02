@@ -1,7 +1,6 @@
-use rdev::{listen, EventType, Key};
+use rdev::{EventType, Key};
 use std::sync::mpsc::{channel, Sender};
 use std::sync::{Arc, Mutex};
-use std::thread;
 
 #[derive(Debug, Clone)]
 pub enum InputEvent {
@@ -39,7 +38,7 @@ impl InputHook {
 
         *running.lock().unwrap() = true;
 
-        thread::spawn(move {
+        std::thread::spawn(move || {
             let callback = move |event: rdev::Event| {
                 let input_event = match event.event_type {
                     EventType::KeyPress(key) => {
@@ -105,7 +104,7 @@ impl InputHook {
                 let _ = sender.send(input_event);
             };
 
-            if let Err(e) = listen(callback) {
+            if let Err(e) = rdev::listen(callback) {
                 log::error!("Input hook error: {:?}", e);
             }
         });
